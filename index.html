@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Event Impact Window – FX Spot Analyzer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Highcharts v11.4.8 (vendored locally — no external CDN dependency) -->
+  <script src="vendor/highcharts.js"></script>
+  <script src="vendor/heatmap.js"></script>
+  <script src="vendor/exporting.js"></script>
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+<div class="app-container">
+  <header>
+    <div>
+      <h1>Event Impact Window – FX Spot</h1>
+      <div class="subtitle">
+        Learn when EURUSD / USDJPY move the most around macro events and how
+        quickly moves decay.
+      </div>
+    </div>
+  </header>
+
+  <!-- Ready marker for snapshot / scheduling -->
+  <div id="ready-marker" data-status="loading" style="display:none;">loading</div>
+
+  <!-- Top controls -->
+  <div class="controls-bar">
+    <div class="control-group">
+      <label for="eventType">Event type</label>
+      <select id="eventType">
+        <option value="NFP">NFP headline (US)</option>
+        <option value="CPI_H">CPI headline (US)</option>
+        <option value="CPI_C">CPI core (US)</option>
+        <option value="FOMC">FOMC decision</option>
+        <option value="ECB">ECB decision</option>
+        <option value="BOJ">BoJ decision</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label for="ccyPair">Currency pair</label>
+      <select id="ccyPair">
+        <option value="EURUSD">EURUSD</option>
+        <option value="USDJPY">USDJPY</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label for="volRegime">Vol regime</label>
+      <select id="volRegime">
+        <option value="ALL">All</option>
+        <option value="LOW">Low</option>
+        <option value="NORMAL">Normal</option>
+        <option value="HIGH">High</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label>Mode</label>
+      <div class="mode-toggle">
+        <button class="mode-btn active" data-mode="historical">Historical overview</button>
+        <button class="mode-btn" data-mode="upcoming">Upcoming event</button>
+      </div>
+    </div>
+
+    <div class="control-group" id="upcomingTimeGroup" style="display:none;">
+      <label for="upcomingTime">Next event time</label>
+      <input type="datetime-local" id="upcomingTime" />
+    </div>
+  </div>
+
+  <!-- Main content layout -->
+  <div class="main-layout">
+    <!-- Left side: overview / charts -->
+    <div>
+      <!-- Stats summary -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Impact window – key stats</div>
+          <div class="panel-subtitle" id="statsSubtitle">
+            Historical calibration based on historical events.
+          </div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Main impact window</div>
+            <div class="stat-value" id="statMainWindow">&ndash;</div>
+            <div class="stat-footnote" id="statMainWindowFoot">
+              Offset and length from event time.
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Median |bp| in main window</div>
+            <div class="stat-value" id="statMedianImpact">&ndash;</div>
+            <div class="stat-footnote">Across clean events in this regime.</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Pre vs post impact</div>
+            <div class="stat-value" id="statPrePost">&ndash;</div>
+            <div class="stat-footnote">Median |bp| in pre and post windows.</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Decay half-life</div>
+            <div class="stat-value" id="statHalfLife">&ndash;</div>
+            <div class="stat-footnote">Time for impact to halve after main window.</div>
+          </div>
+        </div>
+        <div class="timeline-strip">
+          <div class="timeline-label pre">Pre window</div>
+          <div class="timeline-label event">Event (0)</div>
+          <div class="timeline-label main">Main window</div>
+          <div class="timeline-label post">Post / decay</div>
+        </div>
+        <div class="inline-note" id="regimeNote">
+          Running on sample data. Connect to Bloomberg / internal API for live calibration.
+        </div>
+      </div>
+
+      <!-- Heatmap + distribution -->
+      <div class="panel">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="tabHeatmap">Offset / length heatmap</button>
+          <button class="tab-btn" data-tab="tabDistribution">Pre / main / post distribution</button>
+          <button class="tab-btn" data-tab="tabDecay">Decay profile</button>
+        </div>
+
+        <div id="tabHeatmap" class="tab-content active">
+          <div id="heatmapChart" class="chart-container"></div>
+        </div>
+
+        <div id="tabDistribution" class="tab-content">
+          <div id="distributionChart" class="chart-container"></div>
+        </div>
+
+        <div id="tabDecay" class="tab-content">
+          <div id="decayChart" class="chart-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right side: single-event view -->
+    <div>
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Single event deep-dive</div>
+            <div class="panel-subtitle">Click an event to see price path and calibrated windows.</div>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="tabEventList">Event list</button>
+          <button class="tab-btn" data-tab="tabEventDetail">Event detail</button>
+        </div>
+
+        <div id="tabEventList" class="tab-content active">
+          <div class="single-event-list" id="eventList"></div>
+          <div class="inline-note">
+            Events and paths generated from sample data for demonstration.
+          </div>
+        </div>
+
+        <div id="tabEventDetail" class="tab-content">
+          <div id="singleEventSummary" class="inline-note">
+            Select an event from the list to view price path and window metrics.
+          </div>
+          <div id="singleEventChart" class="chart-container"></div>
+          <table class="event-detail-table" id="singleEventTable" style="display:none;">
+            <thead>
+              <tr>
+                <th>Window</th>
+                <th>Net bp move</th>
+                <th>Total |bp| move</th>
+                <th>Max |bp| from start</th>
+                <th>Spread (median)</th>
+                <th>Spread (high frac)</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- App entry point -->
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# Bloomberg bridge server dependencies
+#
+# blpapi requires the Bloomberg C++ SDK (BLPAPI).
+# On Terminal machines this is pre-installed at C:\blp\DAPI.
+# Set BLPAPI_ROOT=C:\blp\DAPI before pip install.
+#
+#   set BLPAPI_ROOT=C:\blp\DAPI
+#   pip install blpapi
+#
+# If blpapi is not installed the server runs in demo mode
+# and the browser app falls back to sample data.
+
+blpapi>=3.19.0
