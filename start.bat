@@ -17,7 +17,7 @@ echo.
 
 REM ── Start Bloomberg bridge in background ────────────────
 echo Starting Bloomberg bridge server on port 8085...
-start "BBG Bridge" /min cmd /c "cd /d %~dp0server && python bloomberg_bridge.py"
+start "BBG Bridge" cmd /k "cd /d %~dp0server && python bloomberg_bridge.py || pause"
 timeout /t 2 /nobreak >nul
 
 REM ── Start web server ────────────────────────────────────
@@ -25,9 +25,9 @@ echo Starting web server on port 3000...
 cd /d %~dp0
 where npx >nul 2>nul
 if %errorlevel% equ 0 (
-    start "Web Server" cmd /c "npx serve -l 3000 ."
+    start "Web Server" cmd /k "npx --yes serve -l 3000 . || pause"
 ) else (
-    start "Web Server" cmd /c "python -m http.server 3000"
+    start "Web Server" cmd /k "python -m http.server 3000 || pause"
 )
 
 timeout /t 2 /nobreak >nul
