@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Event Impact Window – FX Spot Analyzer</title>
+
+<!-- Highcharts via CDN (Studio permits unpkg) -->
+<script src="https://unpkg.com/highcharts@11.4.8/highcharts.js"></script>
+<script src="https://unpkg.com/highcharts@11.4.8/modules/heatmap.js"></script>
+<script src="https://unpkg.com/highcharts@11.4.8/modules/exporting.js"></script>
+
+<style>
+:root {
+  --hsbc-red: #db0011;
+  --hsbc-dark: #111111;
+  --hsbc-gray: #f2f2f2;
+  --hsbc-border: #d0d0d0;
+  --text-main: #222222;
+  --text-muted: #666666;
+  --bg-main: #ffffff;
+  --bg-panel: #fafafa;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+}
+.app-container { width: 100%; max-width: 1400px; margin: 0 auto; padding: 16px; }
+header {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  margin-bottom: 16px; gap: 8px;
+}
+header h1 { font-size: 20px; margin: 0; font-weight: 600; color: var(--hsbc-dark); }
+.subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.main-layout { display: grid; grid-template-columns: 3fr 2fr; gap: 12px; }
+@media (max-width: 960px) { .main-layout { grid-template-columns: 1fr; } }
+.controls-bar {
+  display: flex; flex-wrap: wrap; gap: 12px; padding: 12px;
+  background-color: var(--bg-panel); border-radius: 4px;
+  border: 1px solid var(--hsbc-border); margin-bottom: 16px;
+}
+.control-group { display: flex; flex-direction: column; gap: 4px; min-width: 150px; }
+.control-group label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
+}
+.control-group select,
+.control-group input[type="datetime-local"] {
+  padding: 4px 6px; font-size: 13px; border-radius: 3px;
+  border: 1px solid var(--hsbc-border); min-height: 28px;
+}
+.mode-toggle { display: flex; gap: 4px; }
+.mode-btn {
+  padding: 4px 10px; font-size: 12px; border-radius: 3px;
+  border: 1px solid var(--hsbc-border); background: none; cursor: pointer;
+}
+.mode-btn.active { background-color: var(--hsbc-red); color: #fff; border-color: var(--hsbc-red); }
+.panel {
+  background-color: var(--bg-panel); border-radius: 4px;
+  border: 1px solid var(--hsbc-border); padding: 10px; margin-bottom: 12px;
+}
+.panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.panel-title { font-size: 13px; font-weight: 600; color: var(--hsbc-dark); }
+.panel-subtitle { font-size: 11px; color: var(--text-muted); }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.stat-card {
+  background-color: #fff; border-radius: 4px;
+  border: 1px solid var(--hsbc-border); padding: 8px;
+}
+.stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+.stat-value { font-size: 14px; font-weight: 600; color: var(--hsbc-dark); }
+.stat-footnote { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+.chart-container { width: 100%; height: 260px; margin-top: 4px; }
+.tabs { display: flex; margin-bottom: 4px; border-bottom: 1px solid var(--hsbc-border); }
+.tab-btn {
+  padding: 4px 10px; font-size: 12px; border: none; background: none;
+  cursor: pointer; border-bottom: 2px solid transparent;
+}
+.tab-btn.active { border-bottom-color: var(--hsbc-red); color: var(--hsbc-red); font-weight: 600; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.single-event-list {
+  max-height: 180px; overflow-y: auto;
+  border: 1px solid var(--hsbc-border); border-radius: 3px;
+  background-color: #fff; font-size: 12px;
+}
+.single-event-row {
+  display: flex; justify-content: space-between;
+  padding: 4px 6px; cursor: pointer; border-bottom: 1px solid #f0f0f0;
+}
+.single-event-row:last-child { border-bottom: none; }
+.single-event-row:hover { background-color: #f7f7f7; }
+.single-event-row.active { background-color: #ffe6e8; }
+.event-label { font-weight: 500; }
+.event-meta { color: var(--text-muted); }
+.event-detail-table {
+  width: 100%; border-collapse: collapse; font-size: 11px;
+  margin-top: 4px; background-color: #fff;
+}
+.event-detail-table th, .event-detail-table td {
+  border: 1px solid var(--hsbc-border); padding: 4px 6px; text-align: left;
+}
+.event-detail-table th { background-color: var(--hsbc-gray); font-weight: 600; }
+.badge {
+  display: inline-block; padding: 2px 6px; border-radius: 10px; font-size: 10px;
+  border: 1px solid var(--hsbc-border); margin-left: 4px;
+}
+.badge-clean { border-color: #28a745; color: #28a745; }
+.badge-noisy { border-color: #cc0000; color: #cc0000; }
+.inline-note { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+.timeline-strip {
+  width: 100%; height: 24px; position: relative; margin-top: 6px;
+  background: linear-gradient(to right, #f9f9f9 0%, #f9f9f9 30%, #ffe6e8 30%,
+    #ffe6e8 60%, #f9f9f9 60%, #f9f9f9 100%);
+  border-radius: 12px; border: 1px solid var(--hsbc-border); overflow: hidden;
+}
+.timeline-label { position: absolute; top: 50%; transform: translateY(-50%); font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+.timeline-label.event { left: 48%; font-weight: 600; color: var(--hsbc-red); }
+.timeline-label.pre { left: 4px; }
+.timeline-label.main { left: 34%; }
+.timeline-label.post { right: 4px; text-align: right; }
+.loading-text { font-size: 11px; color: var(--text-muted); }
+
+/* AI commentary */
+.ai-box {
+  margin-top: 8px; padding: 8px; background-color: #fff;
+  border: 1px solid var(--hsbc-border); border-radius: 3px;
+}
+.ai-btn {
+  padding: 4px 10px; font-size: 11px; border-radius: 3px;
+  border: 1px solid var(--hsbc-red); background: #fff;
+  color: var(--hsbc-red); cursor: pointer;
+}
+.ai-btn:hover { background: var(--hsbc-red); color: #fff; }
+.ai-btn:disabled { opacity: 0.5; cursor: default; }
+.ai-output {
+  margin-top: 6px; font-size: 11px; line-height: 1.5;
+  color: var(--text-main); white-space: pre-wrap;
+  min-height: 16px;
+}
+.ai-output.placeholder { color: var(--text-muted); font-style: italic; }
+</style>
+</head>
+<body>
+<div class="app-container">
+  <header>
+    <div>
+      <h1>Event Impact Window – FX Spot</h1>
+      <div class="subtitle">
+        Calibrate when G10 FX pairs move the most around macro events, and how quickly moves decay.
+      </div>
+    </div>
+  </header>
+
+  <!-- Ready marker for snapshot / scheduling -->
+  <div id="ready-marker" data-status="loading" style="display:none;">loading</div>
+
+  <div class="controls-bar">
+    <div class="control-group">
+      <label for="eventType">Event type</label>
+      <select id="eventType">
+        <option value="NFP">NFP headline (US)</option>
+        <option value="CPI_H">CPI headline (US)</option>
+        <option value="CPI_C">CPI core (US)</option>
+        <option value="FOMC">FOMC decision</option>
+        <option value="ECB">ECB decision</option>
+        <option value="BOJ">BoJ decision</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="ccyPair">Currency pair</label>
+      <select id="ccyPair">
+        <option value="EURUSD">EURUSD</option>
+        <option value="USDJPY">USDJPY</option>
+        <option value="GBPUSD">GBPUSD</option>
+        <option value="AUDUSD">AUDUSD</option>
+        <option value="USDCAD">USDCAD</option>
+        <option value="USDCHF">USDCHF</option>
+        <option value="NZDUSD">NZDUSD</option>
+        <option value="EURGBP">EURGBP</option>
+        <option value="EURJPY">EURJPY</option>
+        <option value="EURCHF">EURCHF</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="volRegime">Vol regime</label>
+      <select id="volRegime">
+        <option value="ALL">All</option>
+        <option value="LOW">Low</option>
+        <option value="NORMAL">Normal</option>
+        <option value="HIGH">High</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Mode</label>
+      <div class="mode-toggle">
+        <button class="mode-btn active" data-mode="historical">Historical overview</button>
+        <button class="mode-btn" data-mode="upcoming">Upcoming event</button>
+      </div>
+    </div>
+    <div class="control-group" id="upcomingTimeGroup" style="display:none;">
+      <label for="upcomingTime">Next event time</label>
+      <input type="datetime-local" id="upcomingTime" />
+    </div>
+  </div>
+
+  <div class="main-layout">
+    <div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Impact window – key stats</div>
+          <div class="panel-subtitle" id="statsSubtitle">
+            Historical calibration based on historical events.
+          </div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Main impact window</div>
+            <div class="stat-value" id="statMainWindow">&ndash;</div>
+            <div class="stat-footnote" id="statMainWindowFoot">Offset and length from event time.</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Median |bp| in main window</div>
+            <div class="stat-value" id="statMedianImpact">&ndash;</div>
+            <div class="stat-footnote">Across clean events in this regime.</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Pre vs post impact</div>
+            <div class="stat-value" id="statPrePost">&ndash;</div>
+            <div class="stat-footnote">Median |bp| in pre and post windows.</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Decay half-life</div>
+            <div class="stat-value" id="statHalfLife">&ndash;</div>
+            <div class="stat-footnote">Time for impact to halve after main window.</div>
+          </div>
+        </div>
+        <div class="timeline-strip">
+          <div class="timeline-label pre">Pre window</div>
+          <div class="timeline-label event">Event (0)</div>
+          <div class="timeline-label main">Main window</div>
+          <div class="timeline-label post">Post / decay</div>
+        </div>
+        <div class="inline-note" id="regimeNote">
+          Running on sample data. Wire the Studio stubs for live calibration.
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="tabHeatmap">Offset / length heatmap</button>
+          <button class="tab-btn" data-tab="tabDistribution">Pre / main / post distribution</button>
+          <button class="tab-btn" data-tab="tabDecay">Decay profile</button>
+        </div>
+        <div id="tabHeatmap" class="tab-content active"><div id="heatmapChart" class="chart-container"></div></div>
+        <div id="tabDistribution" class="tab-content"><div id="distributionChart" class="chart-container"></div></div>
+        <div id="tabDecay" class="tab-content"><div id="decayChart" class="chart-container"></div></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Single event deep-dive</div>
+            <div class="panel-subtitle">Click an event to see price path and calibrated windows.</div>
+          </div>
+        </div>
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="tabEventList">Event list</button>
+          <button class="tab-btn" data-tab="tabEventDetail">Event detail</button>
+        </div>
+        <div id="tabEventList" class="tab-content active">
+          <div class="single-event-list" id="eventList"></div>
+          <div class="inline-note">Events and paths generated from sample data for demonstration.</div>
+        </div>
+        <div id="tabEventDetail" class="tab-content">
+          <div id="singleEventSummary" class="inline-note">
+            Select an event from the list to view price path and window metrics.
+          </div>
+          <div id="singleEventChart" class="chart-container"></div>
+          <table class="event-detail-table" id="singleEventTable" style="display:none;">
+            <thead>
+              <tr>
+                <th>Window</th>
+                <th>Net bp move</th>
+                <th>Total |bp| move</th>
+                <th>Max |bp| from start</th>
+                <th>Spread (median)</th>
+                <th>Spread (high frac)</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <div class="ai-box" id="aiBox" style="display:none;">
+            <button class="ai-btn" id="aiBtn">Generate AI commentary</button>
+            <div class="ai-output placeholder" id="aiOutput">
+              Click to generate a short narrative on this event's price action.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* =======================================================================
+ * SECTION 1 — STUDIO DATA LAYER
+ * =======================================================================
+ *
+ *   ██████  ██████  ██ ████████ ██ ██ ███████ ████████ ██    ██ ██████  ███████
+ *  ██    ██ ██   ██ ██    ██    ██ ██ ██         ██    ██    ██ ██   ██ ██
+ *  ██    ██ ██████  ██    ██    ██ ██ ███████    ██    ██    ██ ██████  █████
+ *  ██    ██ ██   ██ ██    ██    ██ ██      ██    ██    ██    ██ ██   ██ ██
+ *   ██████  ██   ██ ██    ██    ██ ██ ███████    ██     ██████  ██   ██ ███████
+ *
+ *  ALL API CALLS LIVE IN THIS SECTION. Nothing elsewhere in this file
+ *  talks to Studio, Bloomberg, or any external system.
+ *
+ *  There are exactly THREE stub methods on `StudioData`:
+ *
+ *    1. fetchEvents(eventType, ccyPair)        → past events + surprises
+ *    2. fetchFxBars(ccyPair, startISO, endISO) → FX spot bars around each event
+ *    3. generateCommentary(eventMeta, metrics) → AI narrative text
+ *
+ *  EACH STUB CURRENTLY RETURNS `null`.  The rest of the board interprets
+ *  `null` as "not wired yet" and falls back to synthetic sample data, so
+ *  the UI is fully usable today.  Replace the `return null` lines with
+ *  real fetch() calls when the Studio endpoints are known.
+ *
+ *  Callers (for reference — DO NOT EDIT these, only the stubs below):
+ *    • fetchEvents + fetchFxBars  ← called from `loadEventsWithTicks()`
+ *    • generateCommentary         ← called from `requestCommentary()`
+ * ======================================================================= */
+
+const StudioData = {
+
+  // ╔═══════════════════════════════════════════════════════════════════════╗
+  // ║  STUB 1 OF 3 — fetchEvents                                            ║
+  // ║  ---------------------------------------------------------------------║
+  // ║  WHAT TO DO: replace `return null;` with a fetch() to the Studio      ║
+  // ║  endpoint that returns dated past economic events for (eventType,     ║
+  // ║  ccyPair). Map the response into the shape documented below.          ║
+  // ╚═══════════════════════════════════════════════════════════════════════╝
+  /**
+   * @param {string} eventType — one of: "NFP" | "CPI_H" | "CPI_C" | "FOMC" | "ECB" | "BOJ"
+   * @param {string} ccyPair   — e.g. "EURUSD"
+   * @param {{limit?: number}} [opts]
+   *
+   * @returns {Promise<null | Array<{
+   *   id: string,             // any stable unique id
+   *   eventType: string,      // echo back the input
+   *   ccyPair: string,        // echo back the input
+   *   dateUTC: string,        // ISO 8601, e.g. "2024-11-01T13:30:00Z"
+   *   actual?: number,        // optional — released number
+   *   forecast?: number,      // optional — consensus
+   *   surprise: number        // standardised z-score: (actual - forecast) / sigma
+   * }>>}
+   *
+   * SOURCES (pick whichever is available in your deployment):
+   *   (a) Studio FX event-weights API — if it exposes dated past events.
+   *   (b) Bloomberg ECO calendar via bridge — needs a @@BRIDGE_REQ@@ token
+   *       pre-generated from Studio chat (boards cannot mint tokens from JS).
+   *   (c) A curated Studio endpoint (e.g. /studio/api/events?type=...&pair=...)
+   *
+   * RETURN `null` to signal "not implemented" → the board falls back to sample data.
+   */
+  async fetchEvents(eventType, ccyPair, opts) {
+    // ═════════════════════════════════════════════════════════════════════
+    // ▼▼▼ MARKETS AI: REPLACE EVERYTHING BELOW THIS LINE ▼▼▼
+    // ═════════════════════════════════════════════════════════════════════
+    //
+    // Example shape (delete and rewrite with real endpoint):
+    //
+    //   const limit = (opts && opts.limit) || 24;
+    //   const resp = await fetch(
+    //     `/studio/api/events?type=${eventType}&pair=${ccyPair}&limit=${limit}`
+    //   );
+    //   if (!resp.ok) return null;
+    //   const raw = await resp.json();
+    //   return raw.events.map((e, i) => ({
+    //     id: e.id || `${eventType}-${ccyPair}-${i}`,
+    //     eventType,
+    //     ccyPair,
+    //     dateUTC: e.release_datetime_utc,
+    //     actual: e.actual,
+    //     forecast: e.forecast,
+    //     surprise: e.surprise_z ?? 0,
+    //   }));
+    //
+    return null;
+    // ═════════════════════════════════════════════════════════════════════
+    // ▲▲▲ MARKETS AI: REPLACE EVERYTHING ABOVE THIS LINE ▲▲▲
+    // ═════════════════════════════════════════════════════════════════════
+  },
+
+  // ╔═══════════════════════════════════════════════════════════════════════╗
+  // ║  STUB 2 OF 3 — fetchFxBars                                            ║
+  // ║  ---------------------------------------------------------------------║
+  // ║  WHAT TO DO: replace `return null;` with a fetch() to the Studio FX   ║
+  // ║  spot time-series endpoint. Convert bars into { ts, mid } objects.    ║
+  // ║  Called once per event; the board auto-trims to the ±45-min window.   ║
+  // ╚═══════════════════════════════════════════════════════════════════════╝
+  /**
+   * @param {string} ccyPair      — e.g. "EURUSD"
+   * @param {string} startISO     — ISO 8601 window start (≈ event − 45 min)
+   * @param {string} endISO       — ISO 8601 window end   (≈ event + 45 min)
+   * @param {string} [frequency]  — Studio frequency format; default "0D00:01:00" (1-minute)
+   *                                 Other valid values: "0D00:05:00" (5-min), etc.
+   *
+   * @returns {Promise<null | Array<{
+   *   ts: number,   // epoch milliseconds
+   *   mid: number   // FX mid price
+   * }>>}
+   *   Must be sorted ascending by ts. Any monotonic grid is fine — the
+   *   analytics operate on whatever resolution you return.
+   *
+   * NOTES:
+   *   • If Studio returns OHLC bars [ts, o, h, l, c], use mid = c (or (h+l)/2).
+   *   • If only bid/ask available, use mid = (bid + ask) / 2.
+   *   • True tick data needs Bloomberg via bridge — 1-min bars are acceptable.
+   *
+   * RETURN `null` to signal "not implemented" → sample ticks are used instead.
+   */
+  async fetchFxBars(ccyPair, startISO, endISO, frequency) {
+    // ═════════════════════════════════════════════════════════════════════
+    // ▼▼▼ MARKETS AI: REPLACE EVERYTHING BELOW THIS LINE ▼▼▼
+    // ═════════════════════════════════════════════════════════════════════
+    //
+    // Example shape (delete and rewrite with real endpoint):
+    //
+    //   const freq = frequency || "0D00:01:00";
+    //   const url = `/studio/api/fx/spot?pair=${ccyPair}` +
+    //               `&start=${encodeURIComponent(startISO)}` +
+    //               `&end=${encodeURIComponent(endISO)}` +
+    //               `&frequency=${freq}`;
+    //   const resp = await fetch(url);
+    //   if (!resp.ok) return null;
+    //   const raw = await resp.json();
+    //   return raw.bars.map(b => ({
+    //     ts: new Date(b.time).getTime(),   // or b.ts_ms directly if provided
+    //     mid: b.close ?? (b.high + b.low) / 2,
+    //   }));
+    //
+    return null;
+    // ═════════════════════════════════════════════════════════════════════
+    // ▲▲▲ MARKETS AI: REPLACE EVERYTHING ABOVE THIS LINE ▲▲▲
+    // ═════════════════════════════════════════════════════════════════════
+  },
+
+  // ╔═══════════════════════════════════════════════════════════════════════╗
+  // ║  STUB 3 OF 3 — generateCommentary                                     ║
+  // ║  ---------------------------------------------------------------------║
+  // ║  WHAT TO DO: replace `return null;` with a fetch() to the Studio AI   ║
+  // ║  assistant endpoint. Pass the prompt + metrics context as JSON. Keep  ║
+  // ║  the reply short (≈80 words). Must NOT throw on failure.              ║
+  // ╚═══════════════════════════════════════════════════════════════════════╝
+  /**
+   * @param {object} eventMeta — {
+   *     eventType: string, ccyPair: string, dateUTC: string,
+   *     surprise: number, actual: number|null, forecast: number|null
+   * }
+   * @param {object} metrics   — {
+   *     windows: { pre: {...}, main: {...}, post: {...} },   // each has netBp, totalAbsBp, maxAbsBp
+   *     decay: { halfLifeSec, residualBp, peakBp },
+   *     windowOffsetSec: number,
+   *     windowLengthSec: number
+   * }
+   *
+   * @returns {Promise<null | string>}  plain-text narrative (markdown accepted by the UI)
+   *
+   * NOTES:
+   *   • Non-blocking: catch errors internally and return null on failure —
+   *     the UI then shows a "not wired" placeholder.
+   *   • Structured context helps: pass `metrics` as JSON, not a paragraph.
+   *
+   * RETURN `null` to signal "not implemented" → UI shows placeholder text.
+   */
+  async generateCommentary(eventMeta, metrics) {
+    // ═════════════════════════════════════════════════════════════════════
+    // ▼▼▼ MARKETS AI: REPLACE EVERYTHING BELOW THIS LINE ▼▼▼
+    // ═════════════════════════════════════════════════════════════════════
+    //
+    // Example shape (delete and rewrite with real endpoint):
+    //
+    //   try {
+    //     const resp = await fetch("/studio/api/ai/commentary", {
+    //       method: "POST",
+    //       headers: { "Content-Type": "application/json" },
+    //       body: JSON.stringify({
+    //         prompt:
+    //           `Write an 80-word trader-style note on the FX reaction to ` +
+    //           `${eventMeta.eventType} on ${eventMeta.ccyPair}. Focus on ` +
+    //           `magnitude, timing, and whether the move reverted.`,
+    //         context: { eventMeta, metrics },
+    //       }),
+    //     });
+    //     if (!resp.ok) return null;
+    //     const data = await resp.json();
+    //     return data.text || null;
+    //   } catch (e) {
+    //     return null;
+    //   }
+    //
+    return null;
+    // ═════════════════════════════════════════════════════════════════════
+    // ▲▲▲ MARKETS AI: REPLACE EVERYTHING ABOVE THIS LINE ▲▲▲
+    // ═════════════════════════════════════════════════════════════════════
+  },
+};
+
+/* =======================================================================
+ * SECTION 2 — SAMPLE DATA (fallback, used when stubs return null)
+ * ======================================================================= */
+
+const PAIR_PROFILES = {
+  EURUSD: { baseMid: 1.0845, pipSize: 0.0001, quietNoiseBp: 0.3, eventNoiseBp: 1.2 },
+  USDJPY: { baseMid: 149.50, pipSize: 0.01,   quietNoiseBp: 0.4, eventNoiseBp: 1.8 },
+  GBPUSD: { baseMid: 1.2700, pipSize: 0.0001, quietNoiseBp: 0.4, eventNoiseBp: 1.4 },
+  AUDUSD: { baseMid: 0.6600, pipSize: 0.0001, quietNoiseBp: 0.4, eventNoiseBp: 1.5 },
+  USDCAD: { baseMid: 1.3500, pipSize: 0.0001, quietNoiseBp: 0.3, eventNoiseBp: 1.3 },
+  USDCHF: { baseMid: 0.8800, pipSize: 0.0001, quietNoiseBp: 0.3, eventNoiseBp: 1.2 },
+  NZDUSD: { baseMid: 0.6000, pipSize: 0.0001, quietNoiseBp: 0.5, eventNoiseBp: 1.6 },
+  EURGBP: { baseMid: 0.8540, pipSize: 0.0001, quietNoiseBp: 0.3, eventNoiseBp: 1.0 },
+  EURJPY: { baseMid: 162.00, pipSize: 0.01,   quietNoiseBp: 0.4, eventNoiseBp: 1.5 },
+  EURCHF: { baseMid: 0.9500, pipSize: 0.0001, quietNoiseBp: 0.3, eventNoiseBp: 0.9 },
+};
+
+const TYPICAL_MOVE_BP = {
+  NFP:   { EURUSD: 35, USDJPY: 45, GBPUSD: 35, AUDUSD: 40, USDCAD: 35, USDCHF: 30, NZDUSD: 45, EURGBP: 12, EURJPY: 30, EURCHF: 10 },
+  CPI_H: { EURUSD: 25, USDJPY: 30, GBPUSD: 25, AUDUSD: 28, USDCAD: 25, USDCHF: 20, NZDUSD: 32, EURGBP: 10, EURJPY: 22, EURCHF:  8 },
+  CPI_C: { EURUSD: 20, USDJPY: 25, GBPUSD: 20, AUDUSD: 22, USDCAD: 20, USDCHF: 18, NZDUSD: 25, EURGBP:  8, EURJPY: 18, EURCHF:  7 },
+  FOMC:  { EURUSD: 30, USDJPY: 40, GBPUSD: 28, AUDUSD: 35, USDCAD: 30, USDCHF: 25, NZDUSD: 40, EURGBP: 10, EURJPY: 28, EURCHF:  9 },
+  ECB:   { EURUSD: 25, USDJPY: 12, GBPUSD: 15, AUDUSD: 10, USDCAD:  8, USDCHF: 15, NZDUSD:  8, EURGBP: 20, EURJPY: 22, EURCHF: 18 },
+  BOJ:   { EURUSD:  8, USDJPY: 55, GBPUSD:  8, AUDUSD: 10, USDCAD:  6, USDCHF:  6, NZDUSD: 10, EURGBP:  5, EURJPY: 50, EURCHF:  5 },
+};
+
+const EVENT_TEMPLATES = {
+  NFP: {
+    label: "NFP headline (US)",
+    typicalOffsetSec: 2, mainDurationSec: 300, overshootFrac: 0.20, decayHalfLifeSec: 600,
+    releaseTimes: [
+      "2024-01-05T13:30:00Z","2024-02-02T13:30:00Z","2024-03-08T13:30:00Z",
+      "2024-04-05T13:30:00Z","2024-05-03T13:30:00Z","2024-06-07T13:30:00Z",
+      "2024-07-05T13:30:00Z","2024-08-02T13:30:00Z","2024-09-06T13:30:00Z",
+      "2024-10-04T13:30:00Z","2024-11-01T13:30:00Z","2024-12-06T13:30:00Z"
+    ]
+  },
+  CPI_H: {
+    label: "CPI headline (US)",
+    typicalOffsetSec: 1, mainDurationSec: 240, overshootFrac: 0.15, decayHalfLifeSec: 480,
+    releaseTimes: [
+      "2024-01-11T13:30:00Z","2024-02-13T13:30:00Z","2024-03-12T13:30:00Z",
+      "2024-04-10T13:30:00Z","2024-05-15T13:30:00Z","2024-06-12T13:30:00Z",
+      "2024-07-11T13:30:00Z","2024-08-14T13:30:00Z","2024-09-11T13:30:00Z",
+      "2024-10-10T13:30:00Z","2024-11-13T13:30:00Z","2024-12-11T13:30:00Z"
+    ]
+  },
+  CPI_C: {
+    label: "CPI core (US)",
+    typicalOffsetSec: 1, mainDurationSec: 240, overshootFrac: 0.12, decayHalfLifeSec: 420,
+    releaseTimes: [
+      "2024-01-11T13:30:00Z","2024-02-13T13:30:00Z","2024-03-12T13:30:00Z",
+      "2024-04-10T13:30:00Z","2024-05-15T13:30:00Z","2024-06-12T13:30:00Z",
+      "2024-07-11T13:30:00Z","2024-08-14T13:30:00Z","2024-09-11T13:30:00Z",
+      "2024-10-10T13:30:00Z","2024-11-13T13:30:00Z","2024-12-11T13:30:00Z"
+    ]
+  },
+  FOMC: {
+    label: "FOMC decision",
+    typicalOffsetSec: 0, mainDurationSec: 600, overshootFrac: 0.25, decayHalfLifeSec: 900,
+    releaseTimes: [
+      "2024-01-31T19:00:00Z","2024-03-20T18:00:00Z","2024-05-01T18:00:00Z",
+      "2024-06-12T18:00:00Z","2024-07-31T18:00:00Z","2024-09-18T18:00:00Z",
+      "2024-11-07T19:00:00Z","2024-12-18T19:00:00Z"
+    ]
+  },
+  ECB: {
+    label: "ECB decision",
+    typicalOffsetSec: 0, mainDurationSec: 480, overshootFrac: 0.18, decayHalfLifeSec: 720,
+    releaseTimes: [
+      "2024-01-25T13:15:00Z","2024-03-07T13:15:00Z","2024-04-11T13:15:00Z",
+      "2024-06-06T13:15:00Z","2024-07-18T13:15:00Z","2024-09-12T13:15:00Z",
+      "2024-10-17T13:15:00Z","2024-12-12T13:15:00Z"
+    ]
+  },
+  BOJ: {
+    label: "BoJ decision",
+    typicalOffsetSec: 5, mainDurationSec: 360, overshootFrac: 0.30, decayHalfLifeSec: 540,
+    releaseTimes: [
+      "2024-01-23T03:00:00Z","2024-03-19T03:00:00Z","2024-04-26T03:00:00Z",
+      "2024-06-14T03:00:00Z","2024-07-31T03:00:00Z","2024-09-20T03:00:00Z",
+      "2024-10-31T03:00:00Z","2024-12-19T03:00:00Z"
+    ]
+  }
+};
+
+function normalRandom() {
+  const u1 = Math.random(); const u2 = Math.random();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+
+function logistic(x) { return 1 / (1 + Math.exp(-10 * (x - 0.5))); }
+function logisticDerivative(x) { const l = logistic(x); return 10 * l * (1 - l); }
+function getPhase(sec, offsetSec, mainDuration) {
+  if (sec < offsetSec) return "pre";
+  if (sec < offsetSec + mainDuration) return "main";
+  return "post";
+}
+
+function generateSyntheticTicks(eventDateUTC, ccyPair, eventType, surprise) {
+  const profile = PAIR_PROFILES[ccyPair];
+  const template = EVENT_TEMPLATES[eventType];
+  const typicalMove = (TYPICAL_MOVE_BP[eventType] || {})[ccyPair] || 20;
+
+  const eventMs = new Date(eventDateUTC).getTime();
+  const startSec = -45 * 60, endSec = 45 * 60, stepSec = 5;
+  const ticks = [];
+  let mid = profile.baseMid + normalRandom() * profile.baseMid * 0.0002;
+  const direction = surprise > 0 ? 1 : -1;
+  const totalMoveBp = Math.abs(surprise) * typicalMove;
+  const totalMove = totalMoveBp * profile.pipSize;
+  const offsetJitter = Math.round(normalRandom() * 1.5) * stepSec;
+  const effectiveOffset = template.typicalOffsetSec + offsetJitter;
+
+  for (let s = startSec; s <= endSec; s += stepSec) {
+    const phase = getPhase(s, effectiveOffset, template.mainDurationSec);
+    let noise, drift = 0;
+    if (phase === "pre") {
+      noise = normalRandom() * profile.quietNoiseBp * profile.pipSize;
+      if (s > -60 && s <= 0) drift = direction * totalMove * 0.02 * (stepSec / 60);
+    } else if (phase === "main") {
+      noise = normalRandom() * profile.eventNoiseBp * profile.pipSize;
+      const progress = (s - effectiveOffset) / template.mainDurationSec;
+      drift = (direction * totalMove * (1 + template.overshootFrac) /
+               (template.mainDurationSec / stepSec)) * logisticDerivative(progress) * 3;
+    } else {
+      noise = normalRandom() * (profile.quietNoiseBp * 1.5) * profile.pipSize;
+      const timeSinceMainEnd = s - effectiveOffset - template.mainDurationSec;
+      const decayFactor = Math.exp(-timeSinceMainEnd / template.decayHalfLifeSec * Math.LN2);
+      drift = -direction * totalMove * template.overshootFrac *
+              (stepSec / template.decayHalfLifeSec) * decayFactor;
+    }
+    mid += drift + noise;
+    ticks.push({
+      ts: eventMs + s * 1000,
+      mid: parseFloat(mid.toFixed(profile.pipSize < 0.001 ? 5 : 3))
+    });
+  }
+  return ticks;
+}
+
+function buildSampleEventsFor(eventType, ccyPair) {
+  const template = EVENT_TEMPLATES[eventType];
+  if (!template) return [];
+  return template.releaseTimes.map((dateUTC, i) => {
+    const surprise = parseFloat((normalRandom() * 1.2).toFixed(2));
+    return {
+      id: `${eventType}-${ccyPair}-${i}`,
+      eventType, ccyPair, dateUTC,
+      actual: null, forecast: null, surprise,
+      ticks: generateSyntheticTicks(dateUTC, ccyPair, eventType, surprise)
+    };
+  });
+}
+
+/* =======================================================================
+ * SECTION 3 — DATA LOADER (Studio stubs → sample fallback)
+ * ======================================================================= */
+
+function resampleBarsToTicks(bars, eventMs) {
+  // Bars are already { ts, mid } — just filter to [-45m, +45m] window
+  const windowStart = eventMs - 45 * 60 * 1000;
+  const windowEnd = eventMs + 45 * 60 * 1000;
+  return bars.filter((b) => b.ts >= windowStart && b.ts <= windowEnd)
+             .sort((a, b) => a.ts - b.ts);
+}
+
+async function loadEventsWithTicks(eventType, ccyPair) {
+  // Try Studio stubs first
+  const events = await StudioData.fetchEvents(eventType, ccyPair, { limit: 24 });
+
+  if (Array.isArray(events) && events.length > 0) {
+    const withTicks = await Promise.all(events.map(async (ev) => {
+      const eventMs = new Date(ev.dateUTC).getTime();
+      const startISO = new Date(eventMs - 45 * 60 * 1000).toISOString();
+      const endISO = new Date(eventMs + 45 * 60 * 1000).toISOString();
+      const bars = await StudioData.fetchFxBars(ccyPair, startISO, endISO, "0D00:01:00");
+      const ticks = Array.isArray(bars) ? resampleBarsToTicks(bars, eventMs) : null;
+      return { ...ev, ticks: ticks || generateSyntheticTicks(ev.dateUTC, ccyPair, eventType, ev.surprise || 0) };
+    }));
+    return { events: withTicks.filter((e) => e.ticks.length > 0), source: "studio" };
+  }
+
+  // Fallback: sample data
+  return { events: buildSampleEventsFor(eventType, ccyPair), source: "sample" };
+}
+
+/* =======================================================================
+ * SECTION 4 — ANALYTICS (returns, window optimiser, decay fit)
+ * ======================================================================= */
+
+function computeReturns(ticks, eventTs) {
+  if (ticks.length < 2) return [];
+  const baseTs = eventTs || ticks[0].ts;
+  const returns = [];
+  let cumBp = 0;
+  for (let i = 1; i < ticks.length; i++) {
+    const bpReturn = ((ticks[i].mid - ticks[i - 1].mid) / ticks[i - 1].mid) * 10000;
+    cumBp += bpReturn;
+    returns.push({
+      ts: ticks[i].ts,
+      offsetSec: (ticks[i].ts - baseTs) / 1000,
+      bpReturn: parseFloat(bpReturn.toFixed(4)),
+      cumBp: parseFloat(cumBp.toFixed(4))
+    });
+  }
+  return returns;
+}
+
+function windowMetrics(returns, startSec, endSec) {
+  const inWindow = returns.filter((r) => r.offsetSec >= startSec && r.offsetSec < endSec);
+  if (inWindow.length === 0) return { totalAbsBp: 0, netBp: 0, maxAbsBp: 0, tickCount: 0 };
+  let totalAbsBp = 0, maxAbsBp = 0;
+  const baseCum = inWindow[0].cumBp - inWindow[0].bpReturn;
+  const netBp = inWindow[inWindow.length - 1].cumBp - baseCum;
+  for (const r of inWindow) {
+    totalAbsBp += Math.abs(r.bpReturn);
+    const absFromStart = Math.abs(r.cumBp - baseCum);
+    if (absFromStart > maxAbsBp) maxAbsBp = absFromStart;
+  }
+  return {
+    totalAbsBp: parseFloat(totalAbsBp.toFixed(2)),
+    netBp: parseFloat(netBp.toFixed(2)),
+    maxAbsBp: parseFloat(maxAbsBp.toFixed(2)),
+    tickCount: inWindow.length
+  };
+}
+
+const OFFSET_MIN = -600, OFFSET_MAX = 600, OFFSET_STEP = 30;
+const LENGTH_MIN = 60,   LENGTH_MAX = 1800, LENGTH_STEP = 60;
+
+function getOffsets() { const a = []; for (let o = OFFSET_MIN; o <= OFFSET_MAX; o += OFFSET_STEP) a.push(o); return a; }
+function getLengths() { const a = []; for (let l = LENGTH_MIN; l <= LENGTH_MAX; l += LENGTH_STEP) a.push(l); return a; }
+
+function medianArr(arr) {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+function percentileArr(arr, p) {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a, b) => a - b);
+  const idx = (p / 100) * (s.length - 1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  return lo === hi ? s[lo] : s[lo] + (s[hi] - s[lo]) * (idx - lo);
+}
+
+function optimiseWindow(allReturns) {
+  const offsets = getOffsets();
+  const lengths = getLengths();
+  const grid = [];
+  let bestScore = -1, best = null;
+  for (const offset of offsets) {
+    for (const length of lengths) {
+      const startSec = offset, endSec = offset + length;
+      const scores = allReturns.map((r) => windowMetrics(r, startSec, endSec).totalAbsBp);
+      const med = medianArr(scores);
+      const entry = {
+        offset, length,
+        medianAbsBp: parseFloat(med.toFixed(2)),
+        p25: parseFloat(percentileArr(scores, 25).toFixed(2)),
+        p75: parseFloat(percentileArr(scores, 75).toFixed(2))
+      };
+      grid.push(entry);
+      if (med > bestScore) { bestScore = med; best = entry; }
+    }
+  }
+  return { grid, best, offsets, lengths };
+}
+
+function deriveWindows(best) {
+  return {
+    pre:  { startSec: -45 * 60, endSec: best.offset, label: "Pre" },
+    main: { startSec: best.offset, endSec: best.offset + best.length, label: "Main" },
+    post: { startSec: best.offset + best.length, endSec: 45 * 60, label: "Post" }
+  };
+}
+
+function fitDecay(returns, mainWindow, postWindow) {
+  if (!returns.length) return { halfLifeSec: 0, residualBp: 0, peakBp: 0, curve: [] };
+  const mainEnd = returns.filter((r) => r.offsetSec <= mainWindow.endSec);
+  const mainStart = returns.filter((r) => r.offsetSec <= mainWindow.startSec);
+  const cumAtMainEnd = mainEnd.length ? mainEnd[mainEnd.length - 1].cumBp : 0;
+  const cumAtMainStart = mainStart.length ? mainStart[mainStart.length - 1].cumBp : 0;
+  const peakBp = cumAtMainEnd - cumAtMainStart;
+  const postReturns = returns.filter((r) => r.offsetSec >= postWindow.startSec && r.offsetSec <= postWindow.endSec);
+  if (postReturns.length < 3 || Math.abs(peakBp) < 0.5) {
+    return { halfLifeSec: 0, residualBp: 0, peakBp, curve: [] };
+  }
+  const points = [];
+  const step = 30;
+  for (let s = postWindow.startSec; s <= postWindow.endSec; s += step) {
+    const tick = returns.find((r) => r.offsetSec >= s);
+    if (tick) points.push({ t: s - postWindow.startSec, disp: Math.abs(tick.cumBp - cumAtMainStart) });
+  }
+  if (points.length < 3) {
+    return {
+      halfLifeSec: 0, residualBp: 0, peakBp: parseFloat(peakBp.toFixed(2)),
+      curve: points.map((p) => ({ sec: p.t + postWindow.startSec, bp: p.disp }))
+    };
+  }
+  const lastN = points.slice(-5);
+  const residual = lastN.reduce((s, p) => s + p.disp, 0) / lastN.length;
+  const adjusted = points.map((p) => ({ t: p.t, y: p.disp - residual * 0.9 })).filter((p) => p.y > 0.1);
+  if (adjusted.length < 3) {
+    return {
+      halfLifeSec: 0,
+      residualBp: parseFloat(residual.toFixed(2)),
+      peakBp: parseFloat(peakBp.toFixed(2)),
+      curve: points.map((p) => ({ sec: p.t + postWindow.startSec, bp: p.disp }))
+    };
+  }
+  const logY = adjusted.map((p) => Math.log(p.y));
+  const tVals = adjusted.map((p) => p.t);
+  const n = tVals.length;
+  const sumT = tVals.reduce((a, b) => a + b, 0);
+  const sumLogY = logY.reduce((a, b) => a + b, 0);
+  const sumTLogY = tVals.reduce((a, t, i) => a + t * logY[i], 0);
+  const sumT2 = tVals.reduce((a, t) => a + t * t, 0);
+  const denom = n * sumT2 - sumT * sumT;
+  const lambda = denom !== 0 ? -(n * sumTLogY - sumT * sumLogY) / denom : 0;
+  const halfLifeSec = lambda > 0 ? Math.LN2 / lambda : 0;
+  const curve = [];
+  const A = Math.abs(peakBp);
+  for (let t = 0; t <= postWindow.endSec - postWindow.startSec; t += step) {
+    const fitted = lambda > 0 ? A * Math.exp(-lambda * t) + residual : A + residual;
+    curve.push({ sec: t + postWindow.startSec, bp: parseFloat(fitted.toFixed(2)) });
+  }
+  return {
+    halfLifeSec: parseFloat(halfLifeSec.toFixed(0)),
+    residualBp: parseFloat(residual.toFixed(2)),
+    peakBp: parseFloat(peakBp.toFixed(2)),
+    curve
+  };
+}
+
+function aggregateDecay(decayResults) {
+  const valid = decayResults.filter((d) => d.halfLifeSec > 0);
+  if (!valid.length) return { medianHalfLifeSec: 0, medianResidualBp: 0 };
+  const halves = valid.map((d) => d.halfLifeSec).sort((a, b) => a - b);
+  const residuals = valid.map((d) => d.residualBp).sort((a, b) => a - b);
+  const mid = Math.floor(halves.length / 2);
+  return {
+    medianHalfLifeSec: halves.length % 2 ? halves[mid] : (halves[mid - 1] + halves[mid]) / 2,
+    medianResidualBp: residuals.length % 2 ? residuals[mid] : (residuals[mid - 1] + residuals[mid]) / 2
+  };
+}
+
+function emptyResult() {
+  return {
+    eventCount: 0, totalEventCount: 0, bestOffset: 0, bestLength: 0, windows: null,
+    medianMainAbsBp: 0, medianPreAbsBp: 0, medianPostAbsBp: 0,
+    decayHalfLifeSec: 0, decayResidualBp: 0,
+    heatmapGrid: [], heatmapOffsets: [], heatmapLengths: [], perEvent: []
+  };
+}
+
+function runAnalysis(events, volRegime) {
+  volRegime = volRegime || "ALL";
+  if (!events || events.length === 0) return emptyResult();
+
+  const enriched = events.map((ev) => {
+    const eventTs = new Date(ev.dateUTC).getTime();
+    const returns = computeReturns(ev.ticks, eventTs);
+    return Object.assign({}, ev, { returns, eventTs });
+  });
+
+  enriched.forEach((ev) => {
+    if (!ev.volRegime) {
+      const total = ev.returns.reduce((s, r) => s + Math.abs(r.bpReturn), 0);
+      const median = 30;
+      if (total < median * 0.6) ev.volRegime = "LOW";
+      else if (total > median * 1.4) ev.volRegime = "HIGH";
+      else ev.volRegime = "NORMAL";
+    }
+  });
+
+  const filtered = volRegime === "ALL" ? enriched : enriched.filter((ev) => ev.volRegime === volRegime);
+  if (filtered.length === 0) return emptyResult();
+
+  const allReturns = filtered.map((ev) => ev.returns);
+  const optimResult = optimiseWindow(allReturns);
+  const windows = deriveWindows(optimResult.best);
+
+  const perEvent = filtered.map((ev) => ({
+    id: ev.id, eventType: ev.eventType, ccyPair: ev.ccyPair, dateUTC: ev.dateUTC,
+    surprise: ev.surprise, volRegime: ev.volRegime,
+    actual: ev.actual, forecast: ev.forecast,
+    returns: ev.returns, ticks: ev.ticks, eventTs: ev.eventTs,
+    windows: {
+      pre:  Object.assign({}, windows.pre,  { metrics: windowMetrics(ev.returns, windows.pre.startSec,  windows.pre.endSec) }),
+      main: Object.assign({}, windows.main, { metrics: windowMetrics(ev.returns, windows.main.startSec, windows.main.endSec) }),
+      post: Object.assign({}, windows.post, { metrics: windowMetrics(ev.returns, windows.post.startSec, windows.post.endSec) })
+    },
+    decay: fitDecay(ev.returns, windows.main, windows.post)
+  }));
+
+  const mainAbsBps = perEvent.map((e) => e.windows.main.metrics.totalAbsBp);
+  const preAbsBps  = perEvent.map((e) => e.windows.pre.metrics.totalAbsBp);
+  const postAbsBps = perEvent.map((e) => e.windows.post.metrics.totalAbsBp);
+  const decayAgg = aggregateDecay(perEvent.map((e) => e.decay));
+
+  return {
+    eventCount: filtered.length, totalEventCount: events.length,
+    bestOffset: optimResult.best.offset, bestLength: optimResult.best.length, windows,
+    medianMainAbsBp: parseFloat(medianArr(mainAbsBps).toFixed(2)),
+    medianPreAbsBp: parseFloat(medianArr(preAbsBps).toFixed(2)),
+    medianPostAbsBp: parseFloat(medianArr(postAbsBps).toFixed(2)),
+    decayHalfLifeSec: decayAgg.medianHalfLifeSec,
+    decayResidualBp: decayAgg.medianResidualBp,
+    heatmapGrid: optimResult.grid, heatmapOffsets: optimResult.offsets, heatmapLengths: optimResult.lengths,
+    perEvent
+  };
+}
+
+/* =======================================================================
+ * SECTION 5 — RENDERERS (stats, charts, event list)
+ * ======================================================================= */
+
+const IS_SNAPSHOT = typeof window !== "undefined" && window.__SNAPSHOT_MODE === true;
+const HC_ANIM = IS_SNAPSHOT ? false : undefined;
+
+function fmtSec(sec) {
+  const sign = sec < 0 ? "\u2212" : "+";
+  const abs = Math.abs(sec);
+  if (abs < 60) return `${sign}${abs}s`;
+  const m = Math.floor(abs / 60);
+  const s = abs % 60;
+  return s ? `${sign}${m}m ${s}s` : `${sign}${m}m`;
+}
+
+function updateStats(result) {
+  const mainWindow = document.getElementById("statMainWindow");
+  const medianImpact = document.getElementById("statMedianImpact");
+  const prePost = document.getElementById("statPrePost");
+  const halfLife = document.getElementById("statHalfLife");
+  const subtitle = document.getElementById("statsSubtitle");
+  const mainFoot = document.getElementById("statMainWindowFoot");
+  const regimeNote = document.getElementById("regimeNote");
+
+  if (!result || result.eventCount === 0) {
+    mainWindow.textContent = "\u2013";
+    medianImpact.textContent = "\u2013";
+    prePost.textContent = "\u2013";
+    halfLife.textContent = "\u2013";
+    subtitle.textContent = "No events match the current filters.";
+    return;
+  }
+  mainWindow.textContent = `${fmtSec(result.bestOffset)} \u2192 ${fmtSec(result.bestOffset + result.bestLength)}`;
+  mainFoot.textContent = `Offset ${fmtSec(result.bestOffset)}, length ${fmtSec(result.bestLength)}. ${result.eventCount} events (of ${result.totalEventCount}).`;
+  medianImpact.textContent = `${result.medianMainAbsBp.toFixed(1)} bp`;
+  prePost.textContent = `${result.medianPreAbsBp.toFixed(1)} / ${result.medianPostAbsBp.toFixed(1)} bp`;
+  halfLife.textContent = result.decayHalfLifeSec > 0 ? fmtSec(result.decayHalfLifeSec) : "\u2013";
+  subtitle.textContent = `Calibrated from ${result.eventCount} historical events. Best window maximises cumulative |spot move|.`;
+  regimeNote.textContent = `Grid: offsets ${fmtSec(result.heatmapOffsets[0])} to ${fmtSec(result.heatmapOffsets[result.heatmapOffsets.length - 1])}, lengths 1m\u201330m.`;
+}
+
+let heatmapChart = null, distChart = null, decayChart = null, singleChart = null;
+
+function renderHeatmap(result) {
+  const container = document.getElementById("heatmapChart");
+  if (!result || result.heatmapGrid.length === 0) {
+    container.innerHTML = '<div class="loading-text">No data for heatmap.</div>';
+    if (heatmapChart) { heatmapChart.destroy(); heatmapChart = null; }
+    return;
+  }
+  const offsets = result.heatmapOffsets, lengths = result.heatmapLengths;
+  const offsetIdx = {}; offsets.forEach((o, i) => { offsetIdx[o] = i; });
+  const lengthIdx = {}; lengths.forEach((l, i) => { lengthIdx[l] = i; });
+  const data = result.heatmapGrid.map((c) => [offsetIdx[c.offset], lengthIdx[c.length], c.medianAbsBp]);
+  const maxBp = Math.max(...result.heatmapGrid.map((c) => c.medianAbsBp), 1);
+  const xCategories = offsets.map(fmtSec);
+  const yCategories = lengths.map((l) => `${l / 60}m`);
+
+  if (heatmapChart) {
+    heatmapChart.series[0].setData(data, false);
+    heatmapChart.xAxis[0].setCategories(xCategories, false);
+    heatmapChart.yAxis[0].setCategories(yCategories, false);
+    heatmapChart.colorAxis[0].update({ max: maxBp }, false);
+    heatmapChart.redraw();
+    return;
+  }
+  heatmapChart = Highcharts.chart(container, {
+    chart: { type: "heatmap", height: 260, animation: HC_ANIM },
+    title: { text: null },
+    xAxis: { categories: xCategories, title: { text: "Offset from event time", style: { fontSize: "11px" } }, labels: { style: { fontSize: "9px" }, step: 4 } },
+    yAxis: { categories: yCategories, title: { text: "Window length", style: { fontSize: "11px" } }, labels: { style: { fontSize: "9px" } }, reversed: false },
+    colorAxis: { min: 0, max: maxBp, minColor: "#ffffff", maxColor: "#db0011", labels: { style: { fontSize: "9px" } } },
+    tooltip: {
+      formatter() {
+        return `<b>Offset:</b> ${xCategories[this.point.x]}<br><b>Length:</b> ${yCategories[this.point.y]}<br><b>Median |bp|:</b> ${this.point.value.toFixed(1)}`;
+      }
+    },
+    legend: { align: "right", layout: "vertical", verticalAlign: "middle", symbolHeight: 180 },
+    series: [{ name: "Median |bp|", borderWidth: 0.5, borderColor: "#e0e0e0", data, dataLabels: { enabled: false } }],
+    credits: { enabled: false },
+    exporting: { enabled: false },
+    plotOptions: { series: { animation: HC_ANIM } }
+  });
+}
+
+function renderDistribution(result) {
+  const container = document.getElementById("distributionChart");
+  if (!result || result.perEvent.length === 0) {
+    container.innerHTML = '<div class="loading-text">No data for distribution.</div>';
+    if (distChart) { distChart.destroy(); distChart = null; }
+    return;
+  }
+  const sorted = [...result.perEvent].sort((a, b) => new Date(a.dateUTC) - new Date(b.dateUTC));
+  const categories = sorted.map((e) => new Date(e.dateUTC).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }));
+  const preSeries = sorted.map((e) => e.windows.pre.metrics.totalAbsBp);
+  const mainSeries = sorted.map((e) => e.windows.main.metrics.totalAbsBp);
+  const postSeries = sorted.map((e) => e.windows.post.metrics.totalAbsBp);
+
+  if (distChart) {
+    distChart.xAxis[0].setCategories(categories, false);
+    distChart.series[0].setData(preSeries, false);
+    distChart.series[1].setData(mainSeries, false);
+    distChart.series[2].setData(postSeries, false);
+    distChart.redraw();
+    return;
+  }
+  distChart = Highcharts.chart(container, {
+    chart: { type: "column", height: 260, animation: HC_ANIM },
+    title: { text: null },
+    xAxis: { categories, labels: { style: { fontSize: "9px" }, rotation: -45 } },
+    yAxis: { title: { text: "Total |bp| move", style: { fontSize: "11px" } }, min: 0 },
+    plotOptions: { column: { grouping: true, pointPadding: 0.1, groupPadding: 0.15 }, series: { animation: HC_ANIM } },
+    series: [
+      { name: "Pre-window",  data: preSeries,  color: "#999999" },
+      { name: "Main window", data: mainSeries, color: "#db0011" },
+      { name: "Post-window", data: postSeries, color: "#ffb3b8" }
+    ],
+    legend: { align: "center", verticalAlign: "bottom", itemStyle: { fontSize: "10px" } },
+    credits: { enabled: false }, exporting: { enabled: false }
+  });
+}
+
+function renderDecay(result) {
+  const container = document.getElementById("decayChart");
+  if (!result || result.perEvent.length === 0 || !result.windows) {
+    container.innerHTML = '<div class="loading-text">No data for decay profile.</div>';
+    if (decayChart) { decayChart.destroy(); decayChart = null; }
+    return;
+  }
+  const postStart = result.windows.post.startSec;
+  const postEnd = result.windows.post.endSec;
+  const step = 30;
+  const timePoints = [];
+  for (let s = postStart; s <= postEnd; s += step) timePoints.push(s);
+
+  const medianCurve = timePoints.map((sec) => {
+    const disps = result.perEvent.map((ev) => {
+      const mainStartCum = ev.returns.find((r) => r.offsetSec >= result.windows.main.startSec);
+      const tick = ev.returns.find((r) => r.offsetSec >= sec);
+      if (!mainStartCum || !tick) return 0;
+      return Math.abs(tick.cumBp - (mainStartCum.cumBp - mainStartCum.bpReturn));
+    });
+    return [sec / 60, parseFloat(medianArr(disps).toFixed(2))];
+  });
+
+  const fittedCurve = timePoints.map((sec) => {
+    const vals = result.perEvent
+      .map((ev) => { const pt = ev.decay.curve.find((c) => c.sec >= sec); return pt ? pt.bp : null; })
+      .filter((v) => v !== null);
+    if (!vals.length) return [sec / 60, 0];
+    return [sec / 60, parseFloat(medianArr(vals).toFixed(2))];
+  });
+
+  if (decayChart) {
+    decayChart.series[0].setData(medianCurve, false);
+    decayChart.series[1].setData(fittedCurve, false);
+    decayChart.redraw();
+    return;
+  }
+  decayChart = Highcharts.chart(container, {
+    chart: { type: "line", height: 260, animation: HC_ANIM },
+    title: { text: null },
+    xAxis: {
+      title: { text: "Minutes from event", style: { fontSize: "11px" } },
+      plotLines: [{
+        value: result.windows.main.endSec / 60, color: "#db0011", width: 1, dashStyle: "Dash",
+        label: { text: "Main window end", style: { fontSize: "9px", color: "#db0011" } }
+      }]
+    },
+    yAxis: { title: { text: "|bp| from pre-event level", style: { fontSize: "11px" } }, min: 0 },
+    series: [
+      { name: "Median observed", data: medianCurve, color: "#111111", lineWidth: 1.5, marker: { radius: 2 } },
+      { name: "Fitted decay",    data: fittedCurve, color: "#db0011", dashStyle: "ShortDash", lineWidth: 1.5, marker: { enabled: false } }
+    ],
+    legend: { align: "center", verticalAlign: "bottom", itemStyle: { fontSize: "10px" } },
+    credits: { enabled: false }, exporting: { enabled: false },
+    plotOptions: { series: { animation: HC_ANIM } }
+  });
+}
+
+function renderEventList(result) {
+  const list = document.getElementById("eventList");
+  list.innerHTML = "";
+  if (!result || result.perEvent.length === 0) {
+    list.innerHTML = '<div style="padding:8px;color:#666;font-size:11px;">No events to display.</div>';
+    return;
+  }
+  const events = [...result.perEvent].sort((a, b) => new Date(b.dateUTC) - new Date(a.dateUTC));
+  events.forEach((ev, idx) => {
+    const row = document.createElement("div");
+    row.className = "single-event-row";
+    row.dataset.index = idx;
+    const dateStr = new Date(ev.dateUTC).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    const timeStr = new Date(ev.dateUTC).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    const netBp = ev.windows.main.metrics.netBp;
+    const absBp = ev.windows.main.metrics.totalAbsBp;
+
+    const label = document.createElement("span");
+    label.className = "event-label";
+    label.textContent = `${dateStr} ${timeStr} `;
+    const badge = document.createElement("span");
+    badge.className = `badge ${Math.abs(ev.surprise) < 1.5 ? "badge-clean" : "badge-noisy"}`;
+    badge.textContent = `${ev.surprise > 0 ? "+" : ""}${ev.surprise}\u03c3`;
+    label.appendChild(badge);
+
+    const meta = document.createElement("span");
+    meta.className = "event-meta";
+    meta.textContent = `${netBp > 0 ? "+" : ""}${netBp.toFixed(1)} bp `;
+    const absSpan = document.createElement("span");
+    absSpan.style.cssText = "color:#999;margin-left:4px;";
+    absSpan.textContent = `(|${absBp.toFixed(1)}|)`;
+    meta.appendChild(absSpan);
+
+    row.appendChild(label);
+    row.appendChild(meta);
+    row.addEventListener("click", () => selectEvent(events, idx, result));
+    list.appendChild(row);
+  });
+}
+
+function selectEvent(events, idx, result) {
+  document.querySelectorAll(".single-event-row").forEach((r) => r.classList.remove("active"));
+  document.querySelector(`.single-event-row[data-index="${idx}"]`)?.classList.add("active");
+  const detailBtn = document.querySelector('[data-tab="tabEventDetail"]');
+  if (detailBtn) detailBtn.click();
+  const ev = events[idx];
+  renderSingleEventChart(ev);
+  renderSingleEventTable(ev);
+  const dateStr = new Date(ev.dateUTC).toLocaleString("en-GB");
+  document.getElementById("singleEventSummary").textContent =
+    `${ev.eventType} \u2014 ${dateStr} \u2014 surprise ${ev.surprise}\u03c3 \u2014 window ${fmtSec(ev.windows.main.startSec)} \u2192 ${fmtSec(ev.windows.main.endSec)}`;
+
+  // Reveal AI commentary box and bind button for this event
+  const aiBox = document.getElementById("aiBox");
+  const aiBtn = document.getElementById("aiBtn");
+  const aiOut = document.getElementById("aiOutput");
+  aiBox.style.display = "";
+  aiOut.className = "ai-output placeholder";
+  aiOut.textContent = "Click to generate a short narrative on this event's price action.";
+  aiBtn.disabled = false;
+  aiBtn.onclick = () => requestCommentary(ev);
+}
+
+function renderSingleEventChart(ev) {
+  const container = document.getElementById("singleEventChart");
+  const data = ev.ticks.map((t) => [(t.ts - ev.eventTs) / 60000, t.mid]);
+  const plotBands = [
+    { from: ev.windows.pre.startSec / 60,  to: ev.windows.pre.endSec / 60,  color: "rgba(200,200,200,0.08)", label: { text: "Pre",  style: { fontSize: "9px", color: "#999" } } },
+    { from: ev.windows.main.startSec / 60, to: ev.windows.main.endSec / 60, color: "rgba(219,0,17,0.08)",    label: { text: "Main", style: { fontSize: "9px", color: "#db0011" } } },
+    { from: ev.windows.post.startSec / 60, to: ev.windows.post.endSec / 60, color: "rgba(200,200,200,0.05)", label: { text: "Post", style: { fontSize: "9px", color: "#999" } } }
+  ];
+  if (singleChart) { singleChart.destroy(); singleChart = null; }
+  singleChart = Highcharts.chart(container, {
+    chart: { type: "line", height: 260, zoomType: "x", animation: HC_ANIM },
+    title: { text: null },
+    xAxis: {
+      title: { text: "Minutes from event", style: { fontSize: "11px" } },
+      plotBands,
+      plotLines: [{ value: 0, color: "#db0011", width: 1.5, dashStyle: "Dash", label: { text: "Event", style: { fontSize: "9px", color: "#db0011", fontWeight: "600" } } }]
+    },
+    yAxis: { title: { text: "Mid price", style: { fontSize: "11px" } } },
+    series: [{ name: "Mid", data, color: "#111111", lineWidth: 1, marker: { enabled: false }, states: { hover: { lineWidth: 1.5 } } }],
+    tooltip: { formatter() { return `<b>${this.x.toFixed(1)}m from event</b><br>Mid: ${this.y}`; } },
+    legend: { enabled: false }, credits: { enabled: false }, exporting: { enabled: false },
+    plotOptions: { series: { animation: HC_ANIM } }
+  });
+}
+
+function renderSingleEventTable(ev) {
+  const table = document.getElementById("singleEventTable");
+  table.style.display = "";
+  const tbody = table.querySelector("tbody");
+  tbody.innerHTML = "";
+  const rows = [
+    { label: "Pre",  w: ev.windows.pre },
+    { label: "Main", w: ev.windows.main },
+    { label: "Post", w: ev.windows.post }
+  ];
+  rows.forEach(({ label, w }) => {
+    const m = w.metrics;
+    const tr = document.createElement("tr");
+    const cells = [
+      `${label} (${fmtSec(w.startSec)} \u2192 ${fmtSec(w.endSec)})`,
+      `${m.netBp > 0 ? "+" : ""}${m.netBp.toFixed(1)}`,
+      m.totalAbsBp.toFixed(1),
+      m.maxAbsBp.toFixed(1),
+      "\u2013", "\u2013"
+    ];
+    cells.forEach((text) => { const td = document.createElement("td"); td.textContent = text; tr.appendChild(td); });
+    tbody.appendChild(tr);
+  });
+  if (ev.decay && ev.decay.halfLifeSec > 0) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 6;
+    td.style.cssText = "font-style:italic;color:#666;";
+    td.textContent = `Decay half-life: ${fmtSec(ev.decay.halfLifeSec)} \u00b7 Peak: ${ev.decay.peakBp.toFixed(1)} bp \u00b7 Residual: ${ev.decay.residualBp.toFixed(1)} bp`;
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+}
+
+async function requestCommentary(ev) {
+  const btn = document.getElementById("aiBtn");
+  const out = document.getElementById("aiOutput");
+  btn.disabled = true;
+  out.className = "ai-output placeholder";
+  out.textContent = "Generating commentary\u2026";
+
+  const eventMeta = {
+    eventType: ev.eventType, ccyPair: ev.ccyPair, dateUTC: ev.dateUTC,
+    surprise: ev.surprise, actual: ev.actual || null, forecast: ev.forecast || null
+  };
+  const metricsCtx = {
+    windows: {
+      pre:  ev.windows.pre.metrics,
+      main: ev.windows.main.metrics,
+      post: ev.windows.post.metrics
+    },
+    decay: ev.decay,
+    windowOffsetSec: ev.windows.main.startSec,
+    windowLengthSec: ev.windows.main.endSec - ev.windows.main.startSec
+  };
+
+  let text = null;
+  try { text = await StudioData.generateCommentary(eventMeta, metricsCtx); } catch (e) { text = null; }
+
+  if (text && typeof text === "string" && text.trim().length) {
+    out.className = "ai-output";
+    out.textContent = text;
+  } else {
+    out.className = "ai-output placeholder";
+    out.textContent = "AI commentary endpoint not wired yet. (Stub `StudioData.generateCommentary` returned null.)";
+  }
+  btn.disabled = false;
+}
+
+/* =======================================================================
+ * SECTION 6 — CONTROLS + BOOTSTRAP
+ * ======================================================================= */
+
+document.querySelectorAll(".tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const parent = btn.closest(".panel") || btn.parentElement.parentElement;
+    parent.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+    parent.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
+    btn.classList.add("active");
+    const target = document.getElementById(btn.dataset.tab);
+    if (target) target.classList.add("active");
+  });
+});
+
+function initControls() {
+  const eventType = document.getElementById("eventType");
+  const ccyPair = document.getElementById("ccyPair");
+  const volRegime = document.getElementById("volRegime");
+  const upcomingGroup = document.getElementById("upcomingTimeGroup");
+  const upcomingTime = document.getElementById("upcomingTime");
+  const modeBtns = document.querySelectorAll(".mode-btn");
+
+  function currentState() {
+    const activeMode = document.querySelector(".mode-btn.active")?.dataset.mode ?? "historical";
+    return {
+      eventType: eventType.value,
+      ccyPair: ccyPair.value,
+      volRegime: volRegime.value,
+      mode: activeMode,
+      upcomingTime: upcomingTime.value || null
+    };
+  }
+  function emit() {
+    document.dispatchEvent(new CustomEvent("controls:change", { detail: currentState() }));
+  }
+  [eventType, ccyPair, volRegime, upcomingTime].forEach((el) => el.addEventListener("change", emit));
+  modeBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      modeBtns.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      upcomingGroup.style.display = btn.dataset.mode === "upcoming" ? "" : "none";
+      emit();
+    });
+  });
+  emit();
+}
+
+function markReady() {
+  const marker = document.getElementById("ready-marker");
+  if (marker) { marker.dataset.status = "ready"; marker.textContent = "ready"; }
+  window.__BOARD_READY = true;
+}
+
+function setRegimeNote(msg) {
+  const note = document.getElementById("regimeNote");
+  if (note) note.textContent = msg;
+}
+
+async function refresh(detail) {
+  const { eventType, ccyPair, volRegime } = detail;
+  try {
+    const { events, source } = await loadEventsWithTicks(eventType, ccyPair);
+    const result = runAnalysis(events, volRegime);
+    updateStats(result);
+    renderHeatmap(result);
+    renderDistribution(result);
+    renderDecay(result);
+    renderEventList(result);
+    const srcLabel = source === "studio" ? "Studio APIs" : "sample data";
+    setRegimeNote(`${result.eventCount} events loaded from ${srcLabel}. Best window: offset ${result.bestOffset}s, length ${result.bestLength}s.`);
+  } catch (err) {
+    console.error("Refresh failed:", err);
+    setRegimeNote(`Error: ${err.message}`);
+  }
+  markReady();
+}
+
+document.addEventListener("controls:change", (e) => refresh(e.detail));
+initControls();
+</script>
+</body>
+</html>
